@@ -1,0 +1,117 @@
+name: Bug 报告 / Bug Report
+description: 报告一个可复现的问题 / Report a reproducible problem
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先同步到最新代码再提交，避免重复报告已修复的问题。
+        Please sync to the latest version before filing, to avoid duplicate reports of already-fixed issues.
+  - type: checkboxes
+    id: latest_code
+    attributes:
+      label: 版本确认 / Version Check
+      description: Fork 用户请先同步 fork，再重新运行 Actions。 / Fork users should sync their fork before rerunning Actions.
+      options:
+        - label: 我已同步最新代码 / I am on the latest commit
+          required: true
+  - type: input
+    id: local_commit
+    attributes:
+      label: 本地代码版本 / Local commit hash
+      description: 运行 `git rev-parse --short HEAD` 后填写结果。 / Run `git rev-parse --short HEAD` and paste the result.
+      placeholder: e.g. a1b2c3d
+    validations:
+      required: true
+  - type: input
+    id: actions_commit
+    attributes:
+      label: GitHub Actions 代码版本 / GitHub Actions commit hash
+      description: 填写工作流日志顶部显示的 commit hash；如未使用 Actions，请填写 N/A。 / Use the commit hash shown at the top of the workflow log, or N/A if Actions was not used.
+      placeholder: e.g. a1b2c3d or N/A
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述 / Problem Description
+      description: 简明扼要地描述遇到的问题。 / Briefly describe the problem.
+      placeholder: 发生了什么问题？ / What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Reproduction Steps
+      description: 请写出可复现的命令、配置和操作步骤。 / Include the command, config, and actions needed to reproduce.
+      placeholder: |
+        1. 执行命令 / Run command: ...
+        2. 配置 / Config: ...
+        3. 查看 / View: ...
+        4. 出现错误 / Error occurs: ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 / Expected Behavior
+      description: 描述你期望发生的情况。 / Describe what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为 / Actual Behavior
+      description: 描述实际发生的情况。 / Describe what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志 / Error Logs
+      description: 粘贴完整相关日志；如没有日志，请填写 N/A。 / Paste complete relevant logs, or N/A if none are available.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统 / OS
+      placeholder: e.g. Ubuntu 22.04 / Windows 11 / macOS 14
+    validations:
+      required: true
+  - type: input
+    id: python_version
+    attributes:
+      label: Python 版本 / Python version
+      placeholder: e.g. 3.11.8
+    validations:
+      required: true
+  - type: dropdown
+    id: run_mode
+    attributes:
+      label: 运行方式 / Run mode
+      options:
+        - Local
+        - Docker
+        - GitHub Actions
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置 / Relevant config
+      description: 请至少说明 GEMINI_MODEL/AI model 和数据源；如不适用，请填写 N/A。 / Include at least GEMINI_MODEL/AI model and data source, or N/A if not applicable.
+      placeholder: |
+        GEMINI_MODEL / AI model:
+        数据源 / Data source:
+    validations:
+      required: true
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 其他信息 / Additional Context
+      description: 添加任何其他有关问题的信息或截图。 / Add any other context or screenshots about the problem.
