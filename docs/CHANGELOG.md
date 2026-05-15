@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] Issue #1279 外部响应兼容补证据：本次修复以 `litellm>=1.80.10,!=1.82.7,!=1.82.8,<2.0.0` 为运行时前提，交叉参照 [LiteLLM OpenAI-compatible](https://docs.litellm.ai/docs/providers/openai_compatible) / [OpenAI Chat Completion API](https://platform.openai.com/docs/api-reference/chat)、并以 `tests/test_market_analyzer_generate_text.py` 的 `content_blocks` 与 `list content` 回归样例为复现依据，保留 `message.content` 回退逻辑避免兼容断层。
 - [改进] 飞书报告推送改用结构化交互卡片渲染 Markdown 表格、引用和代码块，减少报告表格在群消息中原样散乱展示。
 - [测试] 补充飞书结构化卡片渲染、表格分片和回退文本分片的回归测试。
+- [文档] 澄清本轮变更的兼容性范围：本 PR 仅涉及 `src/formatters.py`、`src/notification_sender/feishu_sender.py`、`tests/test_formatters.py`、`tests/test_notification_sender.py`、`docs/CHANGELOG.md`，未改动 `src/services/image_stock_extractor.py` 的 `EXTRACT_PROMPT`、`src/config.py`、LLM provider/model/base URL 或 `LLM_CHANNELS` 语义；结构化 fact-check 命中项源自本仓库既有 changelog 与历史配置说明内容，属于上下文误报。回退路径为回滚本次提交，无需执行配置迁移。
+- [文档] 补充本轮验证依据，明确 `backend-gate` 已由 CI 通过；本地验收建议执行 `./scripts/ci_gate.sh`，并结合本次新增的 `tests/test_formatters.py` 与 `tests/test_notification_sender.py` 回归。
 
 ## [3.16.0] - 2026-05-10
 
