@@ -42,6 +42,8 @@ GET /api/v1/history/{record_id}/diagnostics
 ## 兼容性边界
 
 - 本轮不新增配置项，不改变数据源优先级，不改变 fallback 策略。
+- LLM 相关改动只在 `src/core/pipeline.py` 记录既有 analyzer / agent 调用的只读诊断元数据，并由 `src/services/run_diagnostics.py` 汇总为组件状态；不改 `src/config.py` 的 provider/model/Base URL 解析、LiteLLM 路由、运行时模型清理或旧配置迁移路径。
+- 兼容性依据仍以 `src/config.py` 的现有配置加载顺序和既有 LLM 配置回归为准；本轮新增的 `tests/test_run_diagnostics_p2.py` 只验证诊断摘要对既有 `model_used`/`llm_runs` 的只读消费与脱敏输出。
 - API 只追加可选字段和新增只读接口；旧客户端可忽略。
 - 旧报告没有 `context_snapshot.diagnostics` 时返回 `unknown`，不报错。
 - 通知诊断在当前任务上下文中记录；历史报告如果保存时尚无通知证据，会在摘要中显示通知结果未知。
