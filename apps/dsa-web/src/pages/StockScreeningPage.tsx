@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, CircleAlert, Play, PlusCircle, Search, SlidersHorizontal } from 'lucide-react';
 import {
   alphasiftApi,
@@ -45,6 +45,7 @@ const StockScreeningPage: React.FC = () => {
   const [strategies, setStrategies] = useState<AlphaSiftStrategy[]>([]);
   const [loadingStrategies, setLoadingStrategies] = useState(false);
   const [error, setError] = useState('');
+  const strategyFallbackRef = useRef(strategy);
 
   const selectedStrategy = useMemo(
     () => strategies.find((item) => item.id === strategy),
@@ -76,7 +77,7 @@ const StockScreeningPage: React.FC = () => {
           return;
         }
         setStrategies(fetchedStrategies);
-        if (!fetchedStrategies.some((item) => item.id === strategy) && fetchedStrategies[0]?.id) {
+        if (!fetchedStrategies.some((item) => item.id === strategyFallbackRef.current) && fetchedStrategies[0]?.id) {
           setStrategy(fetchedStrategies[0].id);
         }
       } catch {
