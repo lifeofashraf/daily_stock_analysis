@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-- [新功能] 新增默认关闭的 AlphaSift 选股页签，通过 `ALPHASIFT_ENABLED` 开启后调用本地 `alphasift.screen()`。
+- [新功能] 新增默认关闭的 AlphaSift 选股页签，通过 `ALPHASIFT_ENABLED` 开启后使用 `alphasift.dsa_adapter` 获取状态与策略并执行筛选。
 - [改进] Web 设置页新增 AlphaSift 选股开关卡片，可直接开启或关闭选股页签。
 - [改进] 开启 AlphaSift 选股时自动检查并按 `ALPHASIFT_INSTALL_SPEC` 安装依赖，同时在页面展示投资风险提示。
 - [改进] AlphaSift 关闭时隐藏 Web 左侧“选股”导航入口，避免误导未开启用户。
