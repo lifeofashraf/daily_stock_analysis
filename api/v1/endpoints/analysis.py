@@ -159,6 +159,7 @@ def _run_market_review_background(
             "notifier": notifier,
             "analyzer": analyzer,
             "search_service": search_service,
+            "config": runtime_config,
             "send_notification": send_notification,
             "override_region": override_region,
             "return_structured": True,
@@ -501,7 +502,10 @@ def trigger_market_review(
     """Trigger market review from Web/API without blocking the request."""
     request = request or MarketReviewRequest()
 
-    runtime_config = _with_request_report_language(config, request.report_language)
+    runtime_config = _with_request_report_language(
+        config,
+        getattr(request, "report_language", None),
+    )
     override_region = _compute_market_review_override_region(runtime_config)
     if override_region == "":
         return MarketReviewAccepted(

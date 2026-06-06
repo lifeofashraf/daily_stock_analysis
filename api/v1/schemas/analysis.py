@@ -80,6 +80,7 @@ class AnalyzeRequest(BaseModel):
     )
     report_language: Optional[Literal["zh", "en"]] = Field(
         None,
+        validation_alias=AliasChoices("report_language", "reportLanguage"),
         description="本次分析报告输出语言；未传时使用全局 REPORT_LANGUAGE",
     )
     skills: Optional[List[str]] = Field(
@@ -115,6 +116,7 @@ class MarketReviewRequest(BaseModel):
     )
     report_language: Optional[Literal["zh", "en"]] = Field(
         None,
+        validation_alias=AliasChoices("report_language", "reportLanguage"),
         description="本次大盘复盘报告输出语言；未传时使用全局 REPORT_LANGUAGE",
     )
 
