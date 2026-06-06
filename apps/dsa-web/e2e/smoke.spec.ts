@@ -39,6 +39,8 @@ async function login(page: Page) {
 }
 
 test.describe('web smoke', () => {
+  test.use({ locale: 'zh-CN' });
+
   test('login page renders password form', async ({ page }) => {
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
