@@ -18,7 +18,22 @@ def _result() -> AnalysisResult:
         confidence_level="高",
         analysis_summary="个股信号强势",
         dashboard={
-            "core_conclusion": {"one_sentence": "立即买入并积极加仓"},
+            "operation_advice": "立即买入并积极加仓",
+            "decision_type": "buy",
+            "core_conclusion": {
+                "one_sentence": "立即买入并积极加仓",
+                "position_advice": {
+                    "no_position": "立即买入并积极加仓",
+                    "has_position": "继续加仓",
+                },
+            },
+            "battle_plan": {
+                "position_strategy": {
+                    "suggested_position": "满仓买入",
+                    "entry_plan": "突破后立即买入",
+                    "risk_control": "回踩继续加仓",
+                },
+            },
             "phase_decision": {
                 "data_limitations": [],
                 "confidence_reason": "趋势强",
@@ -45,6 +60,20 @@ def test_conservative_market_context_softens_aggressive_buy() -> None:
     assert result.decision_type == "hold"
     assert "暂不追高" in result.operation_advice
     assert result.confidence_level == "中"
+    assert result.dashboard["operation_advice"] == result.operation_advice
+    assert result.dashboard["decision_type"] == "hold"
+    core = result.dashboard["core_conclusion"]
+    assert core["one_sentence"] == result.operation_advice
+    assert core["position_advice"] == {
+        "no_position": "大盘环境偏谨慎，暂不开新仓，等待风险缓解或确认信号。",
+        "has_position": "仅保留小仓观察，暂不扩大仓位；若跌破风控位优先降低仓位。",
+    }
+    position_strategy = result.dashboard["battle_plan"]["position_strategy"]
+    assert position_strategy == {
+        "suggested_position": "小仓/低仓位",
+        "entry_plan": "大盘环境偏谨慎，暂不开新仓，等待风险缓解或确认信号。",
+        "risk_control": "大盘风险未缓解前不扩大仓位，严格控制回撤。",
+    }
     phase_decision = result.dashboard["phase_decision"]
     assert any("大盘环境" in item for item in phase_decision["data_limitations"])
     assert "大盘环境" in phase_decision["confidence_reason"]

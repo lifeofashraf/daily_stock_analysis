@@ -54,14 +54,68 @@ def apply_daily_market_context_guardrail(
         dashboard = {}
         result.dashboard = dashboard
 
-    core = dashboard.get("core_conclusion")
-    if isinstance(core, dict):
-        core["one_sentence"] = softened_advice
+    _sync_softened_dashboard_fields(
+        dashboard,
+        softened_advice=softened_advice,
+        language=language,
+    )
 
     phase_decision = dashboard.get("phase_decision")
     if not isinstance(phase_decision, dict):
         phase_decision = {}
         dashboard["phase_decision"] = phase_decision
+    _append_softening_limitation(phase_decision, language=language)
+
+    return adjustments
+
+
+def _sync_softened_dashboard_fields(
+    dashboard: dict[str, Any],
+    *,
+    softened_advice: str,
+    language: str,
+) -> None:
+    dashboard["operation_advice"] = softened_advice
+    dashboard["decision_type"] = "hold"
+
+    core = dashboard.get("core_conclusion")
+    if isinstance(core, dict):
+        core["one_sentence"] = softened_advice
+        core["position_advice"] = _softened_position_advice(language)
+
+    battle_plan = dashboard.get("battle_plan")
+    if isinstance(battle_plan, dict):
+        battle_plan["position_strategy"] = _softened_position_strategy(language)
+
+
+def _softened_position_advice(language: str) -> dict[str, str]:
+    if language == "en":
+        return {
+            "no_position": "Do not open a new position until market risk eases or confirmation appears.",
+            "has_position": "Hold only a small position; do not increase exposure, and reduce if risk controls break.",
+        }
+    return {
+        "no_position": "大盘环境偏谨慎，暂不开新仓，等待风险缓解或确认信号。",
+        "has_position": "仅保留小仓观察，暂不扩大仓位；若跌破风控位优先降低仓位。",
+    }
+
+
+def _softened_position_strategy(language: str) -> dict[str, str]:
+    position_advice = _softened_position_advice(language)
+    if language == "en":
+        return {
+            "suggested_position": "Small/defensive position",
+            "entry_plan": position_advice["no_position"],
+            "risk_control": "Do not increase exposure before market risk eases; control drawdown strictly.",
+        }
+    return {
+        "suggested_position": "小仓/低仓位",
+        "entry_plan": position_advice["no_position"],
+        "risk_control": "大盘风险未缓解前不扩大仓位，严格控制回撤。",
+    }
+
+
+def _append_softening_limitation(phase_decision: dict[str, Any], *, language: str) -> None:
     limitations = phase_decision.get("data_limitations")
     if not isinstance(limitations, list):
         limitations = []
@@ -83,8 +137,6 @@ def apply_daily_market_context_guardrail(
         f"{reason}；{reason_note}" if reason and language != "en" else
         f"{reason}; {reason_note}" if reason else reason_note
     )
-
-    return adjustments
 
 
 def _is_conservative_context(context: Any) -> bool:
