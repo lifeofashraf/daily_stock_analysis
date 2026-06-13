@@ -2163,6 +2163,26 @@ class SearchService:
         "cninfo", "sse.com", "szse.cn", "hkexnews", "sec.gov", "nasdaq.com",
         "nyse.com", "上交所", "深交所", "港交所", "证券交易所",
     )
+    _LOW_QUALITY_PAGE_TERMS = (
+        "下载", "安装", "安卓版", "苹果版", "官方版", "最新版", "客户端",
+        "安装包", "资源包", "应用商店", "游戏", "手游", "app", "apk",
+        "download", "install", "installer", "software", "game", "mobile app",
+    )
+    _LOW_QUALITY_APP_CONTEXT_TERMS = (
+        "好评", "评分", "版本", "大小", "适用年龄", "开发者", "应用",
+        "ratings", "reviews", "stars", "version", "developer", "package",
+    )
+    _LOW_QUALITY_FILE_SIZE_RE = re.compile(r"\b\d+(?:\.\d+)?\s*(?:kb|mb|gb)\b", re.IGNORECASE)
+    _LOW_QUALITY_RATING_RE = re.compile(
+        r"(?:\d{1,3}\s*%\s*好评|好评率|用户评分|"
+        r"\b\d(?:\.\d)?\s*(?:stars?|ratings?|reviews?)\b)",
+        re.IGNORECASE,
+    )
+    _LOW_QUALITY_URL_RE = re.compile(
+        r"(?:^|[/_.=-])(?:download|downloads|apk|ipa|exe|dmg|installer|"
+        r"software|soft|game|games|app|apps|package)(?:$|[/_.?&=-])",
+        re.IGNORECASE,
+    )
 
     def __init__(
         self,
@@ -2636,6 +2656,34 @@ class SearchService:
         return any(term.lower() in lower for term in terms)
 
     @classmethod
+    def _has_low_quality_news_page_signal(cls, item: SearchResult) -> bool:
+        """Detect app/download/listing pages without relying on a domain blocklist."""
+        combined_text = " ".join(
+            filter(None, [item.title, item.snippet, item.source, item.url])
+        ).lower()
+        parsed_url = urlparse(item.url or "")
+        url_surface = unquote(
+            " ".join(filter(None, [parsed_url.netloc, parsed_url.path, parsed_url.query]))
+        ).lower()
+
+        has_download_term = cls._contains_any_news_term(
+            combined_text,
+            cls._LOW_QUALITY_PAGE_TERMS,
+        )
+        has_app_context = cls._contains_any_news_term(
+            combined_text,
+            cls._LOW_QUALITY_APP_CONTEXT_TERMS,
+        )
+        has_file_size = bool(cls._LOW_QUALITY_FILE_SIZE_RE.search(combined_text))
+        has_rating = bool(cls._LOW_QUALITY_RATING_RE.search(combined_text))
+        has_url_signal = bool(cls._LOW_QUALITY_URL_RE.search(url_surface))
+
+        return has_url_signal or (
+            (has_download_term or has_app_context)
+            and (has_file_size or has_rating)
+        )
+
+    @classmethod
     def _score_news_relevance(
         cls,
         item: SearchResult,
@@ -2818,6 +2866,66 @@ class SearchService:
         return SearchResponse(
             query=response.query,
             results=limited_results,
+            provider=response.provider,
+            success=response.success,
+            error_message=response.error_message,
+            search_time=response.search_time,
+        )
+
+    @classmethod
+    def _filter_ranked_news_for_context(
+        cls,
+        response: SearchResponse,
+        *,
+        log_scope: str,
+    ) -> SearchResponse:
+        """Drop obvious non-news pages and zero-relevance fillers from ranked results."""
+        if not response.success or not response.results:
+            return response
+
+        candidates: List[SearchResult] = []
+        dropped_low_quality = 0
+        dropped_zero_relevance = 0
+
+        for item in response.results:
+            is_official_source = cls._contains_any_news_term(
+                f"{item.source} {item.url}",
+                cls._OFFICIAL_SOURCE_TERMS,
+            )
+            if (
+                not is_official_source
+                and cls._has_low_quality_news_page_signal(item)
+            ):
+                dropped_low_quality += 1
+                continue
+            candidates.append(item)
+
+        meaningful_candidates = [
+            item
+            for item in candidates
+            if item.relevance_category == cls._DIRECT_NEWS_CATEGORY
+            or (item.relevance_score or 0) > 0
+        ]
+        if meaningful_candidates:
+            dropped_zero_relevance = len(candidates) - len(meaningful_candidates)
+            filtered_results = meaningful_candidates
+        else:
+            filtered_results = candidates
+
+        if dropped_low_quality or dropped_zero_relevance:
+            logger.info(
+                "[新闻准入] %s: provider=%s, total=%s, kept=%s, drop_low_quality=%s, drop_zero_relevance=%s",
+                log_scope,
+                response.provider,
+                len(response.results),
+                len(filtered_results),
+                dropped_low_quality,
+                dropped_zero_relevance,
+            )
+
+        return SearchResponse(
+            query=response.query,
+            results=filtered_results,
             provider=response.provider,
             success=response.success,
             error_message=response.error_message,
@@ -3343,16 +3451,6 @@ class SearchService:
                     log_scope=f"{stock_code}:{provider.name}:stock_news",
                 )
                 had_provider_success = had_provider_success or bool(response.success)
-                filtered_count = len(filtered_response.results or []) if filtered_response.success else 0
-                self._record_news_search_run(
-                    provider=provider.name,
-                    operation="search_stock_news",
-                    success=bool(filtered_response.success and filtered_response.results),
-                    latency_ms=self._elapsed_ms(started_at),
-                    record_count=filtered_count,
-                    error_type=None if filtered_count else "NoUsableNews",
-                    error_message=None if filtered_count else (response.error_message or "过滤后无有效新闻"),
-                )
 
                 if filtered_response.success and filtered_response.results:
                     language_response, _preferred_count = self._prioritize_news_language(
@@ -3367,10 +3465,33 @@ class SearchService:
                         max_results=provider_max_results,
                         log_scope=f"{stock_code}:{provider.name}:stock_news",
                     )
-                    limited_response = self._limit_search_response(
+                    admitted_response = self._filter_ranked_news_for_context(
                         ranked_response,
+                        log_scope=f"{stock_code}:{provider.name}:stock_news",
+                    )
+                    limited_response = self._limit_search_response(
+                        admitted_response,
                         max_results=max_results,
                     )
+                    admitted_count = len(limited_response.results or [])
+                    self._record_news_search_run(
+                        provider=provider.name,
+                        operation="search_stock_news",
+                        success=bool(limited_response.success and limited_response.results),
+                        latency_ms=self._elapsed_ms(started_at),
+                        record_count=admitted_count,
+                        error_type=None if admitted_count else "NoUsableNews",
+                        error_message=None if admitted_count else (
+                            response.error_message or "过滤后无有效新闻"
+                        ),
+                    )
+                    if not admitted_count:
+                        logger.info(
+                            "%s 搜索成功但准入过滤后无有效新闻，继续尝试下一引擎",
+                            provider.name,
+                        )
+                        continue
+
                     stats = self._news_relevance_stats(
                         limited_response,
                         prefer_chinese=prefer_chinese,
@@ -3424,6 +3545,18 @@ class SearchService:
                             provider.name,
                         )
                 else:
+                    filtered_count = len(filtered_response.results or []) if filtered_response.success else 0
+                    self._record_news_search_run(
+                        provider=provider.name,
+                        operation="search_stock_news",
+                        success=bool(filtered_response.success and filtered_response.results),
+                        latency_ms=self._elapsed_ms(started_at),
+                        record_count=filtered_count,
+                        error_type=None if filtered_count else "NoUsableNews",
+                        error_message=None if filtered_count else (
+                            response.error_message or "过滤后无有效新闻"
+                        ),
+                    )
                     if response.success and not filtered_response.results:
                         logger.info(
                             "%s 搜索成功但过滤后无有效新闻，继续尝试下一引擎",
@@ -3729,6 +3862,10 @@ class SearchService:
                 prefer_chinese=self._should_prefer_chinese_news(stock_code, stock_name),
                 max_results=target_per_dimension,
                 log_scope=f"{stock_code}:{provider.name}:{dim['name']}:rank",
+            )
+            filtered_response = self._filter_ranked_news_for_context(
+                filtered_response,
+                log_scope=f"{stock_code}:{provider.name}:{dim['name']}:admission",
             )
             results[dim['name']] = filtered_response
             search_count += 1

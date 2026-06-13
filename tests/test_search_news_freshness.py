@@ -474,6 +474,92 @@ class SearchNewsFreshnessTestCase(unittest.TestCase):
         p1.search.assert_called_once()
         p2.search.assert_called_once()
 
+    def test_search_stock_news_filters_low_quality_and_zero_relevance_fillers(self) -> None:
+        """Download/listing pages and zero-relevance fillers should not enter stock news context."""
+        fresh = datetime.now().date().isoformat()
+        service = SearchService(
+            bocha_keys=["dummy_key"],
+            searxng_public_instances_enabled=False,
+            news_max_age_days=3,
+            news_strategy_profile="short",
+        )
+        provider = SimpleNamespace(
+            is_available=True,
+            name="MixedNoise",
+            search=MagicMock(
+                return_value=_response(
+                    [
+                        _result(
+                            "腾讯控股 00700 极速版安装包下载",
+                            fresh,
+                            snippet="当前版本 686.38MB，84%好评，适合下载安装到手机。",
+                            url="https://download.example.invalid/apps/douyang",
+                            source="download.example.invalid",
+                        ),
+                        _result(
+                            "美国调整关税，社群讨论升温",
+                            fresh,
+                            snippet="社群用户分享生活话题，与目标股票没有直接关系。",
+                            url="https://news.example.invalid/lifestyle/123",
+                            source="news.example.invalid",
+                        ),
+                        _result(
+                            "腾讯控股 00700 早盘走强",
+                            fresh,
+                            snippet="腾讯控股成交活跃，港股科技板块反弹。",
+                            url="https://finance.example.invalid/00700",
+                            source="finance.example.invalid",
+                        ),
+                    ]
+                )
+            ),
+        )
+        service._providers = [provider]
+
+        resp = service.search_stock_news("00700.HK", "腾讯控股", max_results=3)
+
+        self.assertEqual([item.title for item in resp.results], ["腾讯控股 00700 早盘走强"])
+        self.assertEqual(resp.results[0].relevance_category, "direct_company_news")
+
+    def test_comprehensive_intel_filters_fillers_before_prompt_context(self) -> None:
+        """The same admission filter should apply to multi-dimensional intel for prompts."""
+        fresh = datetime.now().date().isoformat()
+        service, mock_search = self._create_service_with_mock_provider(
+            news_max_age_days=3,
+            news_strategy_profile="short",
+            response=_response(
+                [
+                    _result(
+                        "游戏下载页面",
+                        fresh,
+                        snippet="安装包 128.5MB，95%好评，点击下载。",
+                        url="https://cdn.example.invalid/game/download",
+                        source="cdn.example.invalid",
+                    ),
+                    _result("宏观生活资讯", fresh, snippet="泛新闻摘要。"),
+                    _result(
+                        "腾讯控股 00700 发布回购公告",
+                        fresh,
+                        snippet="腾讯控股披露股份回购公告。",
+                        source="hkexnews",
+                    ),
+                ]
+            ),
+        )
+
+        with patch("src.search_service.time.sleep"):
+            intel = service.search_comprehensive_intel(
+                stock_code="00700.HK",
+                stock_name="腾讯控股",
+                max_searches=1,
+            )
+
+        self.assertEqual(
+            [item.title for item in intel["latest_news"].results],
+            ["腾讯控股 00700 发布回购公告"],
+        )
+        mock_search.assert_called_once()
+
     def test_a_share_chinese_direct_news_beats_english_direct_provider_fallback(self) -> None:
         """Chinese-preferred queries should keep looking past English-only direct hits."""
         fresh = datetime.now().date().isoformat()
@@ -523,8 +609,8 @@ class SearchNewsFreshnessTestCase(unittest.TestCase):
         p1.search.assert_called_once()
         p2.search.assert_called_once()
 
-    def test_hk_stock_relevance_avoids_similar_name_noise(self) -> None:
-        """HK stock matching should prefer exact company/code over similar-name news."""
+    def test_hk_stock_relevance_drops_similar_name_noise(self) -> None:
+        """HK stock matching should drop similar-name noise when exact hits exist."""
         fresh = datetime.now().date().isoformat()
         service = SearchService(
             bocha_keys=["dummy_key"],
@@ -559,7 +645,7 @@ class SearchNewsFreshnessTestCase(unittest.TestCase):
 
         self.assertEqual(resp.results[0].title, "腾讯控股 00700 公告：回购股份")
         self.assertEqual(resp.results[0].relevance_category, "direct_company_news")
-        self.assertEqual(resp.results[1].relevance_category, "sector_related_news")
+        self.assertEqual(len(resp.results), 1)
 
     def test_hk_stock_bare_short_code_does_not_match_index_points(self) -> None:
         """Bare HK short codes should not make index-point headlines direct hits."""
