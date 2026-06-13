@@ -2215,11 +2215,11 @@ class SearchService:
     _ADULT_SERVICE_SPAM_STRONG_TERMS = (
         "上门特殊服务", "同城约", "约炮", "援交", "楼凤", "外围女",
         "外围服务", "包夜", "大保健", "莞式", "推油",
-        "成人服务", "色情", "adult service", "escort service",
+        "成人服务", "adult service", "escort service",
         "sex service", "call girl",
     )
     _ADULT_SERVICE_SPAM_AMBIGUOUS_TERMS = (
-        "全套服务",
+        "全套服务", "色情",
     )
     _ADULT_SERVICE_SPAM_CONTEXT_TERMS = (
         "小姐", "上门", "预约", "同城", "按摩", "保健", "足浴", "桑拿",
@@ -2789,22 +2789,46 @@ class SearchService:
         has_rating = bool(cls._LOW_QUALITY_RATING_RE.search(content_text))
         has_url_signal = bool(cls._LOW_QUALITY_URL_RE.search(url_surface))
         has_business_app_metric = bool(cls._BUSINESS_APP_METRIC_RE.search(content_text))
+        has_app_listing_detail = (
+            has_file_size
+            or has_rating
+            or cls._contains_any_low_quality_news_term(
+                content_text,
+                (
+                    "版本", "适用年龄", "开发者", "应用商店", "安卓版",
+                    "苹果版", "官方版", "最新版", "version", "developer",
+                    "package", "mobile app",
+                ),
+            )
+        )
+        has_strong_app_page_evidence = (
+            has_app_listing_detail
+            and (
+                has_url_signal
+                or has_download_intent
+                or (has_download_action and has_app_metadata)
+            )
+        )
+        has_business_app_metric_only = (
+            has_business_app_metric
+            and not has_strong_app_page_evidence
+        )
         has_app_listing_context = (
-            not has_business_app_metric
+            not has_business_app_metric_only
             and has_app_context
             and has_app_metadata
             and (has_download_action or has_download_intent)
             and (has_file_size or has_rating)
         )
         has_content_download_page = (
-            not has_business_app_metric
+            not has_business_app_metric_only
             and (
                 has_download_intent
                 or (has_download_action and (has_app_metadata or has_file_size))
             )
         )
         has_url_backed_download_page = (
-            not has_business_app_metric
+            not has_business_app_metric_only
             and has_url_signal
             and (
                 has_file_size

@@ -809,6 +809,36 @@ class SearchNewsFreshnessTestCase(unittest.TestCase):
 
         self.assertEqual([item.title for item in resp.results], ["腾讯控股 00700 发布回购公告"])
 
+    def test_app_listing_metric_with_version_rating_still_filtered(self) -> None:
+        """Business metric wording should not rescue obvious app listing pages."""
+        fresh = datetime.now().date().isoformat()
+        service, _ = self._create_service_with_mock_provider(
+            news_max_age_days=3,
+            news_strategy_profile="short",
+            response=_response(
+                [
+                    _result(
+                        "腾讯控股 00700 下载量突破1000万",
+                        fresh,
+                        snippet="应用版本 12.8，评分 4.9，安装包 256MB，下载量突破1000万。",
+                        url="https://apps.example.invalid/tencent/00700/download",
+                        source="apps.example.invalid",
+                    ),
+                    _result(
+                        "腾讯控股 00700 发布业绩公告",
+                        fresh,
+                        snippet="腾讯控股披露季度业绩，收入与利润保持增长。",
+                        url="https://finance.example.invalid/news/00700-earnings",
+                        source="finance.example.invalid",
+                    ),
+                ]
+            ),
+        )
+
+        resp = service.search_stock_news("00700.HK", "腾讯控股", max_results=1)
+
+        self.assertEqual([item.title for item in resp.results], ["腾讯控股 00700 发布业绩公告"])
+
     def test_finance_client_boilerplate_does_not_trigger_download_filter(self) -> None:
         """Finance media boilerplate such as 客户端讯 should not look like an app page."""
         fresh = datetime.now().date().isoformat()
@@ -911,6 +941,33 @@ class SearchNewsFreshnessTestCase(unittest.TestCase):
         self.assertEqual(
             [item.title for item in resp.results],
             ["腾讯控股 00700 QQ2024 开放预约"],
+        )
+        self.assertEqual(resp.results[0].relevance_category, "direct_company_news")
+
+    def test_content_moderation_pornography_phrase_does_not_trigger_adult_spam_filter(self) -> None:
+        """Content-safety/regulatory news can mention 色情 without being adult-service spam."""
+        fresh = datetime.now().date().isoformat()
+        service, _ = self._create_service_with_mock_provider(
+            news_max_age_days=3,
+            news_strategy_profile="short",
+            response=_response(
+                [
+                    _result(
+                        "腾讯控股 00700 加强色情低俗内容治理",
+                        fresh,
+                        snippet="腾讯控股升级内容安全体系，持续治理色情低俗内容风险。",
+                        url="https://finance.example.invalid/news/00700-content-safety",
+                        source="finance.example.invalid",
+                    )
+                ]
+            ),
+        )
+
+        resp = service.search_stock_news("00700.HK", "腾讯控股", max_results=1)
+
+        self.assertEqual(
+            [item.title for item in resp.results],
+            ["腾讯控股 00700 加强色情低俗内容治理"],
         )
         self.assertEqual(resp.results[0].relevance_category, "direct_company_news")
 
