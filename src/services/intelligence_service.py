@@ -174,8 +174,6 @@ class IntelligenceService:
         }
 
     def _validate_url(self, raw_url: str) -> None:
-        if raw_url.startswith("no-url:intel:"):
-            return
         parsed = urlparse(raw_url)
         if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
             raise IntelligenceServiceError("source url must be an absolute http(s) URL")

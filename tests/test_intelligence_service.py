@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from src.config import Config
 from src.repositories.intelligence_repo import IntelligenceRepository
@@ -102,6 +103,10 @@ class IntelligenceServiceTestCase(unittest.TestCase):
         with patch("src.services.intelligence_service.socket.getaddrinfo", return_value=private_dns):
             with self.assertRaises(IntelligenceServiceError):
                 self.service.create_source({"name": "bad", "url": "https://metadata.example.com/rss.xml", "scope_type": "market"})
+
+    def test_generated_no_url_sentinel_is_rejected_for_source_url(self) -> None:
+        with self.assertRaisesRegex(IntelligenceServiceError, "absolute http\\(s\\) URL"):
+            self.service.create_source({"name": "bad", "url": "no-url:intel:anything", "scope_type": "market"})
 
     def test_redirect_target_is_validated_before_following(self) -> None:
         with self._public_dns():
@@ -258,6 +263,42 @@ class IntelligenceServiceTestCase(unittest.TestCase):
             session.add(IntelligenceItem(**{**fields, "scope_value": INTELLIGENCE_ITEM_NULL_SCOPE_VALUE}))
             with self.assertRaises(IntegrityError):
                 session.flush()
+
+    def test_duplicate_insert_race_does_not_rollback_prior_batch_items(self) -> None:
+        repo = IntelligenceRepository()
+        base_fields = {
+            "source_name": "race-feed",
+            "source_type": "rss",
+            "summary": "summary",
+            "source": "race-feed",
+            "published_at": datetime.now(),
+            "fetched_at": datetime.now(),
+            "scope_type": "market",
+            "scope_value": None,
+            "market": "cn",
+        }
+        kept = {**base_fields, "title": "kept", "url": "https://news.example.com/kept"}
+        race = {**base_fields, "title": "race", "url": "https://news.example.com/race"}
+        after = {**base_fields, "title": "after", "url": "https://news.example.com/after"}
+        original_flush = Session.flush
+        raised = False
+
+        def flush_with_duplicate_race(session, *args, **kwargs):
+            nonlocal raised
+            if not raised and any(
+                isinstance(row, IntelligenceItem) and row.url == race["url"]
+                for row in session.new
+            ):
+                raised = True
+                raise IntegrityError("insert intelligence item", {}, RuntimeError("duplicate url"))
+            return original_flush(session, *args, **kwargs)
+
+        with patch.object(Session, "flush", flush_with_duplicate_race):
+            self.assertEqual(repo.upsert_items([kept, race, after]), 2)
+
+        with DatabaseManager.get_instance().get_session() as session:
+            titles = {row.title for row in session.query(IntelligenceItem).all()}
+        self.assertEqual(titles, {"kept", "after"})
 
 
 if __name__ == "__main__":

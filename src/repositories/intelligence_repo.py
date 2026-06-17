@@ -128,7 +128,7 @@ class IntelligenceRepository:
                         session.flush()
                     saved += 1
                 except IntegrityError:
-                    session.rollback()
+                    continue
             session.commit()
         return saved
 
