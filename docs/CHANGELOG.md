@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-- [修复] Refs #1718：本次改动仅收敛 JP/KR 自动补全建议清单市场徽标渲染与远端 stock-index 载荷市场白名单校验，文件范围仅 `apps/dsa-web/src/components/StockAutocomplete`、`src/services/stock_index_remote_service.py` 及对应单测，运行时仍为 suffix-only 提交路径；不包含 bare-code 后端解析（如 `000660` / `005930` 自动补齐为 `.KS`）、历史/任务展示改造，也不改动 `api/v1/endpoints/analysis.py`、`api/v1/endpoints/history.py`、`src/data/stock_index_loader.py`、`src/services/history_service.py`、provider/model/base URL 或运行时配置清理/迁移语义。
+- [修复] Refs #1718（PR 描述已对齐）：本次改动仅收敛 JP/KR 自动补全建议清单市场徽标渲染与远端 stock-index 载荷市场白名单校验，文件范围仅 `apps/dsa-web/src/components/StockAutocomplete`、`src/services/stock_index_remote_service.py` 及对应单测，运行时仍为 suffix-only 提交路径；不包含 bare-code 后端解析（如 `000660` / `005930` 自动补齐为 `.KS`）、历史/任务展示改造，也不改动 `api/v1/endpoints/analysis.py`、`api/v1/endpoints/history.py`、`src/data/stock_index_loader.py`、`src/services/history_service.py`、provider/model/base URL 或运行时配置清理/迁移语义。
 
 - [新功能] #1390 P6 将 DecisionSignal 复用到告警、通知和组合风险：告警触发关联 latest active 信号或创建最小 alert 信号，通知追加低敏信号摘要，持仓风险聚合 active sell/reduce/alert 信号并保持 fail-open。
 - [修复] #1722 修复 #1390 P6 DecisionSignal 在组合风险快照语义和默认聚合通知展示中的遗漏。
@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] 个股分析历史成功保存后会从最终报告 best-effort 提取 `DecisionSignal` 决策信号，复用现有信号去重、计划质量计算和脱敏契约。
 - [修复] AlphaSift 热点详情兼容 `leader_stocks` 与 `stocks` 双字段，避免旧合约或缓存只提供其中一个字段时概念股详情报缺失字段。
 - [改进] 问股页移动端策略选择改为默认收起的按钮入口，展开后仍可多选策略并在发送后自动收起，减少对对话内容的遮挡。
-- [修复] #1718 Web 股票输入与自动补全补齐日韩 Yahoo 后缀代码校验和常用日韩股票索引，手输或搜索 `7203.T`、`005930.KS`、`035720.KQ` 可正常提交分析。
+- [修复] Refs #1718 Web 股票输入与自动补全补齐日韩 Yahoo 后缀代码校验和常用日韩股票索引，手输或搜索 `7203.T`、`005930.KS`、`035720.KQ` 可正常提交分析。
 
 
 ## [3.22.0] - 2026-06-13
