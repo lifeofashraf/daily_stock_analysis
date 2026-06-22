@@ -13,8 +13,9 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy import and_, delete, desc, func, or_, select
 
-from data_provider.base import is_bse_code, normalize_stock_code
+from data_provider.base import is_bse_code
 from src.core.backtest_engine import OVERALL_SENTINEL_CODE
+from src.services.stock_code_utils import normalize_code as normalize_backtest_code
 
 from src.storage import BacktestResult, BacktestSummary, DatabaseManager, AnalysisHistory
 
@@ -77,6 +78,64 @@ class BacktestRepository:
             query = query.order_by(desc(AnalysisHistory.created_at)).offset(offset).limit(limit)
             rows = session.execute(query).scalars().all()
             return list(rows)
+
+    def align_existing_result_dates(
+        self,
+        *,
+        code: Optional[str],
+        min_age_days: int,
+        eval_window_days: int,
+        engine_version: str,
+        analysis_date_from: Optional[date],
+        analysis_date_to: Optional[date],
+    ) -> int:
+        """Align legacy result dates to their linked analysis snapshot date.
+
+        Older backtest rows may have stored the trading/start daily date instead
+        of the historical analysis snapshot date. When a date-filtered run skips
+        already-existing rows, those legacy rows would remain invisible to the
+        same date-filtered result query. Updating the stored result date keeps
+        rerun and query semantics aligned without inserting duplicate rows.
+        """
+        cutoff_dt = datetime.now() - timedelta(days=min_age_days)
+
+        with self.db.get_session() as session:
+            conditions = [
+                AnalysisHistory.created_at <= cutoff_dt,
+                BacktestResult.eval_window_days == eval_window_days,
+                BacktestResult.engine_version == engine_version,
+                or_(
+                    AnalysisHistory.report_type.is_(None),
+                    AnalysisHistory.report_type != MARKET_REVIEW_REPORT_TYPE,
+                ),
+            ]
+            if code:
+                conditions.extend(self._build_code_conditions(AnalysisHistory.code, code))
+
+            rows = session.execute(
+                select(BacktestResult, AnalysisHistory)
+                .join(AnalysisHistory, AnalysisHistory.id == BacktestResult.analysis_history_id)
+                .where(and_(*conditions))
+            ).all()
+
+            updated = 0
+            for result, analysis in rows:
+                analysis_date = self.parse_analysis_date_from_snapshot(analysis.context_snapshot)
+                if analysis_date is None and analysis.created_at is not None:
+                    analysis_date = analysis.created_at.date()
+                if analysis_date is None:
+                    continue
+                if analysis_date_from is not None and analysis_date < analysis_date_from:
+                    continue
+                if analysis_date_to is not None and analysis_date > analysis_date_to:
+                    continue
+                if result.analysis_date != analysis_date:
+                    result.analysis_date = analysis_date
+                    updated += 1
+
+            if updated:
+                session.commit()
+            return updated
 
     def save_result(self, result: BacktestResult) -> None:
         with self.db.get_session() as session:
@@ -454,7 +513,7 @@ class BacktestRepository:
         else:
             raw_code = raw_code.upper()
 
-        normalized_code = normalize_stock_code(raw_code)
+        normalized_code = normalize_backtest_code(raw_code)
 
         candidates = [raw_code]
         if normalized_code and normalized_code != raw_code:

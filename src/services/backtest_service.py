@@ -251,6 +251,7 @@ class BacktestService:
             )
 
         has_matching_analysis = False
+        aligned_existing_result_dates = 0
         if not force and processed == 0:
             has_matching_analysis = self._has_matching_analysis_for_run(
                 code=query_code,
@@ -260,6 +261,15 @@ class BacktestService:
                 analysis_date_from=analysis_date_from,
                 analysis_date_to=analysis_date_to,
             )
+            if has_matching_analysis and (analysis_date_from is not None or analysis_date_to is not None):
+                aligned_existing_result_dates = self.repo.align_existing_result_dates(
+                    code=query_code,
+                    min_age_days=int(min_age_days),
+                    eval_window_days=int(eval_window_days),
+                    engine_version=str(engine_version),
+                    analysis_date_from=analysis_date_from,
+                    analysis_date_to=analysis_date_to,
+                )
 
         diagnostics = self._build_run_diagnostics(
             code=diagnostic_code,
@@ -274,6 +284,7 @@ class BacktestService:
             insufficient=insufficient,
             errors=errors,
             has_matching_analysis=has_matching_analysis,
+            aligned_existing_result_dates=aligned_existing_result_dates,
         )
 
         return {
@@ -530,6 +541,7 @@ class BacktestService:
         insufficient: int,
         errors: int,
         has_matching_analysis: bool = False,
+        aligned_existing_result_dates: int = 0,
     ) -> Dict[str, Any]:
         diagnostics: Dict[str, Any] = {
             "code": code,
@@ -539,6 +551,8 @@ class BacktestService:
             "analysis_date_from": analysis_date_from.isoformat() if analysis_date_from else None,
             "analysis_date_to": analysis_date_to.isoformat() if analysis_date_to else None,
         }
+        if aligned_existing_result_dates:
+            diagnostics["aligned_existing_result_dates"] = aligned_existing_result_dates
 
         message: Optional[str] = None
         if processed == 0:

@@ -556,6 +556,20 @@ class BacktestServiceTestCase(unittest.TestCase):
 
         self.assertEqual(len(matches), 0)
 
+    def test_get_candidates_does_not_match_explicit_wrong_a_share_market(self) -> None:
+        repo = BacktestRepository(self.db)
+        for invalid_code in ("600519.SZ", "SH000001", "000001.SH"):
+            with self.subTest(invalid_code=invalid_code):
+                matches = repo.get_candidates(
+                    code=invalid_code,
+                    min_age_days=0,
+                    limit=10,
+                    eval_window_days=3,
+                    engine_version="v1",
+                    force=True,
+                )
+                self.assertEqual(matches, [])
+
     def test_run_backtest_rejects_invalid_market_suffix_length_input(self) -> None:
         service = BacktestService(self.db)
         with self.assertRaisesRegex(ValueError, "非法股票代码格式"):
@@ -568,6 +582,21 @@ class BacktestServiceTestCase(unittest.TestCase):
                 analysis_date_to=date(2024, 1, 1),
                 limit=10,
             )
+
+    def test_run_backtest_rejects_explicit_wrong_a_share_market(self) -> None:
+        service = BacktestService(self.db)
+        for invalid_code in ("600519.SZ", "SH000001", "000001.SH"):
+            with self.subTest(invalid_code=invalid_code):
+                with self.assertRaisesRegex(ValueError, "非法股票代码格式"):
+                    service.run_backtest(
+                        code=invalid_code,
+                        force=False,
+                        eval_window_days=3,
+                        min_age_days=0,
+                        analysis_date_from=date(2024, 1, 1),
+                        analysis_date_to=date(2024, 1, 1),
+                        limit=10,
+                    )
 
     def test_run_backtest_bare_code_query_matches_dotted_history_records(self) -> None:
         self._seed_analysis(
@@ -993,6 +1022,76 @@ class BacktestServiceTestCase(unittest.TestCase):
         assert summary is not None
         self.assertEqual(summary["total_evaluations"], 1)
         self.assertEqual(summary["completed_count"], 1)
+
+    def test_date_filtered_rerun_aligns_legacy_result_date_to_snapshot_date(self) -> None:
+        with self.db.get_session() as session:
+            history = AnalysisHistory(
+                query_id="q-legacy-result-date",
+                code="000005",
+                name="测试股票",
+                report_type="simple",
+                sentiment_score=60,
+                operation_advice="买入",
+                trend_prediction="看多",
+                analysis_summary="legacy result stores fallback trading date",
+                stop_loss=None,
+                take_profit=None,
+                created_at=datetime(2024, 1, 7, 0, 0, 0),
+                context_snapshot='{"enhanced_context": {"date": "2024-01-07"}}',
+            )
+            session.add(history)
+            session.flush()
+            session.add(
+                BacktestResult(
+                    analysis_history_id=history.id,
+                    code="000005",
+                    analysis_date=date(2024, 1, 5),
+                    eval_window_days=1,
+                    engine_version="v1",
+                    eval_status="completed",
+                    evaluated_at=datetime(2024, 1, 8, 0, 0, 0),
+                    operation_advice="买入",
+                    position_recommendation="long",
+                    start_price=10.0,
+                    end_close=10.5,
+                    stock_return_pct=5.0,
+                    direction_expected="up",
+                    direction_correct=True,
+                    outcome="win",
+                    simulated_return_pct=5.0,
+                )
+            )
+            session.commit()
+
+        service = BacktestService(self.db)
+        stats = service.run_backtest(
+            code="000005",
+            force=False,
+            eval_window_days=1,
+            min_age_days=0,
+            analysis_date_from=date(2024, 1, 7),
+            analysis_date_to=date(2024, 1, 7),
+            limit=10,
+        )
+
+        self.assertEqual(stats["processed"], 0)
+        self.assertEqual(stats["saved"], 0)
+        self.assertEqual(stats["diagnostics"]["empty_reason"], "no_new_results")
+        self.assertEqual(stats["diagnostics"]["aligned_existing_result_dates"], 1)
+        with self.db.get_session() as session:
+            result = session.query(BacktestResult).filter(BacktestResult.code == "000005").one()
+            self.assertEqual(result.analysis_date, date(2024, 1, 7))
+
+        data = service.get_recent_evaluations(
+            code="000005",
+            eval_window_days=1,
+            limit=10,
+            page=1,
+            analysis_date_from=date(2024, 1, 7),
+            analysis_date_to=date(2024, 1, 7),
+        )
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["items"][0]["analysis_date"], "2024-01-07")
 
     def test_run_backtest_pages_candidates_before_analysis_date_filter(self) -> None:
         with self.db.get_session() as session:

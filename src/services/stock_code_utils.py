@@ -38,6 +38,10 @@ _PRESERVE_SUFFIXES = {".T", ".KS", ".KQ"}
 def _valid_exchange_code(exchange: str, base: str, digit_lens: tuple[int, ...]) -> bool:
     if not (base.isdigit() and len(base) in digit_lens):
         return False
+    if exchange in {"SH", "SS"}:
+        return base.startswith(("5", "6", "9"))
+    if exchange == "SZ":
+        return not is_bse_code(base) and not base.startswith(("5", "6", "9"))
     if exchange == "BJ":
         return is_bse_code(base)
     return True

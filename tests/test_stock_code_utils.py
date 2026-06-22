@@ -58,6 +58,10 @@ class TestIsCodeLike:
     def test_suffix_sh_rejects_5_digit_base(self):
         assert is_code_like("00700.SH") is False
 
+    def test_suffix_a_share_rejects_wrong_exchange(self):
+        assert is_code_like("600519.SZ") is False
+        assert is_code_like("000001.SH") is False
+
     # --- Exchange prefix format (Issue #6 fix) ---
     def test_prefix_sh_upper(self):
         assert is_code_like("SH600519") is True
@@ -93,6 +97,10 @@ class TestIsCodeLike:
 
     def test_dotted_prefix_bj_rejects_non_bse_base(self):
         assert is_code_like("BJ.600519") is False
+
+    def test_prefix_a_share_rejects_wrong_exchange(self):
+        assert is_code_like("SH000001") is False
+        assert is_code_like("SZ600519") is False
 
     # --- US tickers ---
     def test_us_ticker(self):
@@ -154,6 +162,10 @@ class TestNormalizeCode:
     def test_suffix_sh_rejects_5_digit_base(self):
         assert normalize_code("00700.SH") is None
 
+    def test_suffix_a_share_rejects_wrong_exchange(self):
+        assert normalize_code("600519.SZ") is None
+        assert normalize_code("000001.SH") is None
+
     # --- Exchange prefix format (Issue #6 fix) ---
     def test_prefix_sh_upper(self):
         assert normalize_code("SH600519") == "600519"
@@ -189,6 +201,10 @@ class TestNormalizeCode:
 
     def test_dotted_prefix_bj_rejects_non_bse_base(self):
         assert normalize_code("BJ.600519") is None
+
+    def test_prefix_a_share_rejects_wrong_exchange(self):
+        assert normalize_code("SH000001") is None
+        assert normalize_code("SZ600519") is None
 
     # --- US tickers ---
     def test_us_ticker(self):
