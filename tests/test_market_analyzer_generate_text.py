@@ -2292,6 +2292,11 @@ class TestMarketAnalyzerBypassFix:
         zh_result = ma.generate_market_review(overview, [])
         assert zh_label in zh_result
         assert "今日A股市场整体呈现" not in zh_result
+        assert "暂无市场宽度数据" not in zh_result
+        assert "暂无板块涨跌榜数据" not in zh_result
+        assert "### 三、板块主线" not in zh_result
+        assert "### 四、资金与情绪" not in zh_result
+        assert "结合成交额和涨跌家数看" not in zh_result
 
     def test_inject_data_into_review_matches_english_headings(self):
         from src.market_analyzer import MarketOverview, MarketIndex

@@ -1706,24 +1706,50 @@ Market conditions can change quickly. The data above is for reference only and d
 
         market_labels = {"cn": "A股", "us": "美股", "hk": "港股", "jp": "日股", "kr": "韩股"}
         market_label = market_labels.get(self.region, "A股")
-        dashboard_block = self._build_stats_block(overview)
+        dashboard_block = self._build_stats_block(overview) if self.profile.has_market_stats else ""
         indices_block = self._build_indices_block(overview)
-        sector_block = self._build_sector_block(overview)
+        sector_block = self._build_sector_block(overview) if self.profile.has_sector_rankings else ""
+        summary_focus = (
+            "指数承接、成交额变化和板块持续性"
+            if self.profile.has_market_stats and self.profile.has_sector_rankings
+            else "指数承接、消息催化和整体风险状态"
+        )
+        market_summary_block = (
+            dashboard_block
+            if dashboard_block
+            else (
+                "暂无市场宽度数据。"
+                if self.profile.has_market_stats
+                else "- 当前以主要指数与可用新闻线索评估整体风险状态。"
+            )
+        )
+        sector_section = (
+            f"""
+### 三、板块主线
+{sector_block or "- 暂无板块涨跌榜数据。"}
+"""
+            if self.profile.has_sector_rankings
+            else ""
+        )
+        funds_section = (
+            """
+### 四、资金与情绪
+- 结合成交额和涨跌家数看，当前更适合等待确认，避免仅凭单一热点追高。
+"""
+            if self.profile.has_market_stats
+            else ""
+        )
         return f"""## {overview.date} 大盘复盘
 
-> 今日{market_label}市场整体呈现**{market_mood}**态势，优先观察指数承接、成交额变化和板块持续性。
+> 今日{market_label}市场整体呈现**{market_mood}**态势，优先观察{summary_focus}。
 
 ### 一、盘面总览
-{dashboard_block or "暂无市场宽度数据。"}
+{market_summary_block}
 
 ### 二、指数结构
 {indices_block or indices_text or "暂无指数数据。"}
-
-### 三、板块主线
-{sector_block or "- 暂无板块涨跌榜数据。"}
-
-### 四、资金与情绪
-- 结合成交额和涨跌家数看，当前更适合等待确认，避免仅凭单一热点追高。
+{sector_section}
+{funds_section}
 
 ### 五、消息催化
 - 暂无可用新闻时，应降低对题材持续性的确定性判断。
