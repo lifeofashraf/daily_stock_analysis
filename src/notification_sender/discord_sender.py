@@ -216,7 +216,7 @@ class DiscordSender:
         for attempt in range(1, DISCORD_MAX_RETRIES + 1):
             try:
                 response = requests.post(url, **request_kwargs)
-            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            except requests.exceptions.RequestException as e:
                 if attempt < DISCORD_MAX_RETRIES:
                     delay = 2 ** attempt
                     logger.warning(

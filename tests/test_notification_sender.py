@@ -189,6 +189,25 @@ class TestDiscordSender(unittest.TestCase):
 
     @mock.patch("src.notification_sender.discord_sender.time.sleep", return_value=None)
     @mock.patch("src.notification_sender.discord_sender.requests.post")
+    def test_send_webhook_long_content_continues_after_request_exception(self, mock_post, _mock_sleep):
+        cfg = _config(discord_webhook_url="https://discord.com/webhook/1", discord_max_words=2000)
+        sender = DiscordSender(cfg)
+        content = "A" * 6000
+        chunk_count = len(sender._split_discord_content(content))
+        request_error = requests.exceptions.ChunkedEncodingError("broken response")
+        mock_post.side_effect = (
+            [_response(204)]
+            + [request_error] * 3
+            + [_response(204)] * (chunk_count - 2)
+        )
+
+        result = sender.send_to_discord(content)
+
+        self.assertFalse(result)
+        self.assertEqual(mock_post.call_count, chunk_count + 2)
+
+    @mock.patch("src.notification_sender.discord_sender.time.sleep", return_value=None)
+    @mock.patch("src.notification_sender.discord_sender.requests.post")
     def test_send_bot_clamps_configured_limit_to_discord_content_limit(self, mock_post, _mock_sleep):
         mock_post.return_value = _response(200)
         cfg = _config(
