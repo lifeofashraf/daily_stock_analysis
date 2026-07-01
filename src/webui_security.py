@@ -84,10 +84,13 @@ def enforce_public_webui_auth_guard(host: str, *, auth_enabled: bool) -> None:
     raise RuntimeError(public_auth_guard_message(host))
 
 
+_DEFAULT_WEBUI_BOUND_HOST = "127.0.0.1"
+
+
 def current_webui_bound_host() -> str:
     """Return the best-known runtime bind host for request-time safeguards."""
-    return (
-        os.getenv(WEBUI_BOUND_HOST_ENV)
-        or os.getenv("WEBUI_HOST")
-        or ""
-    ).strip()
+    if WEBUI_BOUND_HOST_ENV in os.environ:
+        return os.environ.get(WEBUI_BOUND_HOST_ENV, "").strip()
+    if "WEBUI_HOST" in os.environ:
+        return os.environ.get("WEBUI_HOST", "").strip()
+    return _DEFAULT_WEBUI_BOUND_HOST
